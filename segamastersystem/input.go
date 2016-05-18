@@ -61,7 +61,5 @@ func (l *inputLoop) Run() {
 		}
 	}
 
-	sdl.Quit()
-
 	application.Exit()
 }

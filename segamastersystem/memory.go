@@ -1,7 +1,7 @@
 package sms
 
 import (
-	"github.com/remogatto/z80"
+	"github.com/eazynow/z80"
 )
 
 type Memory struct {
@@ -9,7 +9,7 @@ type Memory struct {
 	cartridgeRam      [0x8000]byte
 	pages             [4]byte
 	romBanks          [][]byte
-	romBank0 []byte
+	romBank0          []byte
 	romPageMask       byte
 	maskedPage0       byte
 	maskedPage1       byte

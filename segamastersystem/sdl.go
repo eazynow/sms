@@ -1,8 +1,8 @@
 package sms
 
 import (
-	"github.com/scottferg/Go-SDL/sdl"
 	"github.com/remogatto/application"
+	"github.com/veandco/go-sdl2/sdl"
 	"log"
 	"unsafe"
 )
@@ -29,15 +29,15 @@ func (s *sdlSurface) pitch() uint {
 
 // Return the address of pixel at (x,y)
 func (s *sdlSurface) addrXY(x, y uint) uintptr {
-	pixels := uintptr(s.surface.Pixels)
+	pixels := uintptr(s.surface.PixelNum())
 	offset := uintptr(y*s.pitch() + x*s.bpp())
 	return pixels + offset
 }
 
-func newSDLSurface(w, h int) *sdlSurface {
-	surface := sdl.CreateRGBSurface(sdl.SWSURFACE, w, h, 32, 0, 0, 0, 0)
-	if surface == nil {
-		log.Printf("%s", sdl.GetError())
+func newSDLSurface(w, h int32) *sdlSurface {
+	surface, err := sdl.CreateRGBSurface(sdl.SWSURFACE, w, h, 32, 0, 0, 0, 0)
+	if err != nil {
+		log.Printf("%s", err.Error())
 		application.Exit()
 		return nil
 	}
@@ -53,46 +53,59 @@ type sdlScreen interface {
 	renderDisplay(data *DisplayData, colorValues [32]uint32) *sdlSurface
 	display() *sdlSurface
 	border() *sdlSurface
-	screen() *sdlSurface
 	displayRect() *sdl.Rect
+	renderer() *sdl.Renderer
 }
 
 type sdlUnscaledScreen struct {
-	screenSurface, borderSurface, displaySurface *sdlSurface
+	sdlRenderer                   *sdl.Renderer
+	borderSurface, displaySurface *sdlSurface
 }
 
-func newSDLUnscaledScreen() *sdlUnscaledScreen {
-	screenSurface := &sdlSurface{sdl.SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32, sdl.SWSURFACE)}
-	if screenSurface.surface == nil {
-		log.Printf("%s", sdl.GetError())
+func NewSDLUnscaledScreen() *sdlUnscaledScreen {
+	window, err := sdl.CreateWindow("sms", 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, sdl.SWSURFACE)
+	if err != nil {
+		log.Printf("%s", err.Error())
 		application.Exit()
 		return nil
 	}
-	borderSurface := &sdlSurface{sdl.CreateRGBSurface(sdl.SWSURFACE, SCREEN_WIDTH, SCREEN_HEIGHT, 32, 0, 0, 0, 0)}
-	if borderSurface.surface == nil {
-		log.Printf("%s", sdl.GetError())
+
+	renderer, err := sdl.CreateRenderer(window, -1, 0)
+	if err != nil {
+		log.Printf("%s", err.Error())
 		application.Exit()
 		return nil
 	}
-	displaySurface := &sdlSurface{sdl.CreateRGBSurface(sdl.SWSURFACE, DISPLAY_WIDTH, DISPLAY_HEIGHT, 32, 0, 0, 0, 0)}
-	if displaySurface.surface == nil {
-		log.Printf("%s", sdl.GetError())
+
+	s, err := sdl.CreateRGBSurface(sdl.SWSURFACE, SCREEN_WIDTH, SCREEN_HEIGHT, 32, 0, 0, 0, 0)
+	if err != nil {
+		log.Printf("%s", err.Error())
 		application.Exit()
 		return nil
 	}
-	return &sdlUnscaledScreen{screenSurface, borderSurface, displaySurface}
+	borderSurface := &sdlSurface{s}
+
+	s, err = sdl.CreateRGBSurface(sdl.SWSURFACE, DISPLAY_WIDTH, DISPLAY_HEIGHT, 32, 0, 0, 0, 0)
+	if err != nil {
+		log.Printf("%s", err.Error())
+		application.Exit()
+		return nil
+	}
+	displaySurface := &sdlSurface{s}
+
+	return &sdlUnscaledScreen{renderer, borderSurface, displaySurface}
 }
 
-func (screen *sdlUnscaledScreen) renderDisplay(data *DisplayData, paletteR, paletteG, paletteB []byte) *sdlSurface {
+func (screen *sdlUnscaledScreen) renderDisplay(data *DisplayData, colorValues [32]uint32) *sdlSurface {
 	surface := screen.displaySurface
 	surface.surface.Lock()
 	for y := uint(0); y < DISPLAY_HEIGHT; y++ {
 		wy := y * DISPLAY_WIDTH
 		for x := uint(0); x < DISPLAY_WIDTH; x++ {
 			addr := surface.addrXY(x, y)
-			index := data[wy+x]
-			color := rgba{paletteR[index], paletteG[index], paletteB[index], 0}
-			*(*uint32)(unsafe.Pointer(addr)) = color.value32()
+			//			index := data[wy+x]
+			color := colorValues[data[wy+x]]
+			*(*uint32)(unsafe.Pointer(addr)) = color
 		}
 	}
 	surface.surface.Unlock()
@@ -107,93 +120,95 @@ func (screen *sdlUnscaledScreen) border() *sdlSurface {
 	return screen.borderSurface
 }
 
-func (screen *sdlUnscaledScreen) screen() *sdlSurface {
-	return screen.screenSurface
-}
-
 func (screen *sdlUnscaledScreen) display() *sdlSurface {
 	return screen.displaySurface
 }
 
-type sdl2xScreen struct {
-	screenSurface, borderSurface, displaySurface *sdlSurface
+func (screen *sdlUnscaledScreen) renderer() *sdl.Renderer {
+	return screen.sdlRenderer
 }
 
-func NewSDL2xScreen(fullScreen bool) *sdl2xScreen {
-	sdlMode := uint32(sdl.SWSURFACE)
-	if fullScreen {
-		application.Logf("%s", "Activate fullscreen mode")
-		sdlMode = sdl.FULLSCREEN
-		sdl.ShowCursor(sdl.DISABLE)
-	}
-	screenSurface := &sdlSurface{sdl.SetVideoMode(SCREEN_WIDTH*2, SCREEN_HEIGHT*2, 32, sdlMode)}
-	if screenSurface.surface == nil {
-		log.Printf("%s", sdl.GetError())
-		application.Exit()
-		return nil
-	}
-	borderSurface := &sdlSurface{sdl.CreateRGBSurface(sdl.SWSURFACE, SCREEN_WIDTH*2, SCREEN_HEIGHT*2, 32, 0, 0, 0, 0)}
-	if borderSurface.surface == nil {
-		log.Printf("%s", sdl.GetError())
-		application.Exit()
-		return nil
-	}
-	displaySurface := &sdlSurface{sdl.CreateRGBSurface(sdl.SWSURFACE, DISPLAY_WIDTH*2, DISPLAY_HEIGHT*2, 32, 0, 0, 0, 0)}
-	if displaySurface.surface == nil {
-		log.Printf("%s", sdl.GetError())
-		application.Exit()
-		return nil
-	}
-	return &sdl2xScreen{screenSurface, borderSurface, displaySurface}
-}
+// Disable 2x until we have 1x working!
+//
+// type sdl2xScreen struct {
+// 	screenSurface, borderSurface, displaySurface *sdlSurface
+// }
 
-func (screen *sdl2xScreen) renderDisplay(data *DisplayData, colorValues [32]uint32) *sdlSurface {
-	surface := screen.displaySurface
-	bpp := surface.bpp()
-	pitch := surface.pitch()
-	pixels := uintptr(surface.surface.Pixels)
-	size := DISPLAY_SIZE
-	ptrBpp := uintptr(bpp)
-	ptrPitch := uintptr(pitch)
-	ptrBpp_ptrPitch := ptrBpp + ptrPitch
-	x, y := uint(0), uint(0)
-	surface.surface.Lock()
-	for c := 0; c < size; c++ {
-		wy := y << DISPLAY_WIDTH_LOG2
-		scanlineLen := (y * pitch) << 1
-		x %= DISPLAY_WIDTH
-		offset := uintptr(scanlineLen + x<<1*bpp)
-		addr := uintptr(pixels + offset)
-		color := colorValues[data[wy+x]]
-		// Fill a 2x2 rectangle
-		*(*uint32)(unsafe.Pointer(addr)) = color
-		*(*uint32)(unsafe.Pointer(addr + ptrBpp)) = color
-		*(*uint32)(unsafe.Pointer(addr + ptrPitch)) = color
-		*(*uint32)(unsafe.Pointer(addr + ptrBpp_ptrPitch)) = color
-		x++
-		if x == DISPLAY_WIDTH {
-			y++
-		}
-	}
-	surface.surface.Unlock()
-	return surface
-}
+// func NewSDL2xScreen(fullScreen bool) *sdl2xScreen {
+// 	sdlMode := uint32(sdl.SWSURFACE)
+// 	if fullScreen {
+// 		application.Logf("%s", "Activate fullscreen mode")
+// 		sdlMode = sdl.WINDOW_FULLSCREEN
+// 		sdl.ShowCursor(sdl.DISABLE)
+// 	}
+// 	screenSurface := &sdlSurface{sdl.SetVideoMode(SCREEN_WIDTH*2, SCREEN_HEIGHT*2, 32, sdlMode)}
+// 	if screenSurface.surface == nil {
+// 		log.Printf("%s", sdl.GetError())
+// 		application.Exit()
+// 		return nil
+// 	}
+// 	borderSurface := &sdlSurface{sdl.CreateRGBSurface(sdl.SWSURFACE, SCREEN_WIDTH*2, SCREEN_HEIGHT*2, 32, 0, 0, 0, 0)}
+// 	if borderSurface.surface == nil {
+// 		log.Printf("%s", sdl.GetError())
+// 		application.Exit()
+// 		return nil
+// 	}
+// 	displaySurface := &sdlSurface{sdl.CreateRGBSurface(sdl.SWSURFACE, DISPLAY_WIDTH*2, DISPLAY_HEIGHT*2, 32, 0, 0, 0, 0)}
+// 	if displaySurface.surface == nil {
+// 		log.Printf("%s", sdl.GetError())
+// 		application.Exit()
+// 		return nil
+// 	}
+// 	return &sdl2xScreen{screenSurface, borderSurface, displaySurface}
+// }
 
-func (screen *sdl2xScreen) border() *sdlSurface {
-	return screen.borderSurface
-}
+// func (screen *sdl2xScreen) renderDisplay(data *DisplayData, colorValues [32]uint32) *sdlSurface {
+// 	surface := screen.displaySurface
+// 	bpp := surface.bpp()
+// 	pitch := surface.pitch()
+// 	pixels := uintptr(surface.surface.Pixels)
+// 	size := DISPLAY_SIZE
+// 	ptrBpp := uintptr(bpp)
+// 	ptrPitch := uintptr(pitch)
+// 	ptrBpp_ptrPitch := ptrBpp + ptrPitch
+// 	x, y := uint(0), uint(0)
+// 	surface.surface.Lock()
+// 	for c := 0; c < size; c++ {
+// 		wy := y << DISPLAY_WIDTH_LOG2
+// 		scanlineLen := (y * pitch) << 1
+// 		x %= DISPLAY_WIDTH
+// 		offset := uintptr(scanlineLen + x<<1*bpp)
+// 		addr := uintptr(pixels + offset)
+// 		color := colorValues[data[wy+x]]
+// 		// Fill a 2x2 rectangle
+// 		*(*uint32)(unsafe.Pointer(addr)) = color
+// 		*(*uint32)(unsafe.Pointer(addr + ptrBpp)) = color
+// 		*(*uint32)(unsafe.Pointer(addr + ptrPitch)) = color
+// 		*(*uint32)(unsafe.Pointer(addr + ptrBpp_ptrPitch)) = color
+// 		x++
+// 		if x == DISPLAY_WIDTH {
+// 			y++
+// 		}
+// 	}
+// 	surface.surface.Unlock()
+// 	return surface
+// }
 
-func (screen *sdl2xScreen) screen() *sdlSurface {
-	return screen.screenSurface
-}
+// func (screen *sdl2xScreen) border() *sdlSurface {
+// 	return screen.borderSurface
+// }
 
-func (screen *sdl2xScreen) display() *sdlSurface {
-	return screen.displaySurface
-}
+// func (screen *sdl2xScreen) screen() *sdlSurface {
+// 	return screen.screenSurface
+// }
 
-func (screen *sdl2xScreen) displayRect() *sdl.Rect {
-	return &sdl.Rect{BORDER_LEFT_RIGHT * 2, BORDER_TOP_BOTTOM * 2, DISPLAY_WIDTH * 2, DISPLAY_HEIGHT * 2}
-}
+// func (screen *sdl2xScreen) display() *sdlSurface {
+// 	return screen.displaySurface
+// }
+
+// func (screen *sdl2xScreen) displayRect() *sdl.Rect {
+// 	return &sdl.Rect{BORDER_LEFT_RIGHT * 2, BORDER_TOP_BOTTOM * 2, DISPLAY_WIDTH * 2, DISPLAY_HEIGHT * 2}
+// }
 
 type sdlLoop struct {
 	displayData                  chan *DisplayData
@@ -263,25 +278,47 @@ func (l *sdlLoop) Run() {
 func (l *sdlLoop) Render(data *DisplayData) {
 	displayRect := l.screen.displayRect()
 	// render surface
-	displaySurface := l.screen.renderDisplay(data, l.colorValues)
+	//displaySurface := l.screen.renderDisplay(data, l.colorValues)
 	// copy display surface on border surface
-	l.screen.border().surface.Blit(&sdl.Rect{0, 0, 0, 0}, displaySurface.surface, nil)
+
+	// t, err := l.screen.renderer().CreateTextureFromSurface(l.screen.border())
+	// if err != nil {
+	// 	log.Printf("%s", err.Error())
+	// 	application.Exit()
+	// 	return nil
+	// }
+
+	//Blit(srcRect, dst, dstRect)
+	//l.screen.border().surface.Blit(&sdl.Rect{0, 0, 0, 0}, displaySurface.surface, nil)
 	// flip surface
-	l.screen.screen().surface.Blit(&sdl.Rect{displayRect.X, displayRect.Y, 0, 0}, l.screen.border().surface, nil)
-	l.screen.screen().surface.Flip()
+	err := l.screen.renderer().Clear()
+	if err != nil {
+		log.Printf("%s", err.Error())
+		application.Exit()
+		return
+	}
+	err = l.screen.renderer().DrawRect(&sdl.Rect{displayRect.X, displayRect.Y, 0, 0})
+	if err != nil {
+		log.Printf("%s", err.Error())
+		application.Exit()
+		return
+	}
+	l.screen.renderer().Present()
+
+	//l.screen.screen().surface.Flip()
 }
 
 func (l *sdlLoop) renderBorder(index byte) {
-	color := rgba{l.paletteR[index], l.paletteG[index], l.paletteB[index], 0}.value32()
-	display := l.screen.display()
-	border := l.screen.border()
-	border.surface.FillRect(nil, color)
-	displayRect := l.screen.displayRect()
-	// copy display surface on border surface
-	l.screen.screen().surface.Blit(nil, l.screen.border().surface, nil)
-	// flip surface
-	l.screen.screen().surface.Blit(&sdl.Rect{displayRect.X, displayRect.Y, 0, 0}, display.surface, nil)
-	l.screen.screen().surface.Flip()
+	// color := rgba{l.paletteR[index], l.paletteG[index], l.paletteB[index], 0}.value32()
+	// display := l.screen.display()
+	// border := l.screen.border()
+	// border.surface.FillRect(nil, color)
+	// displayRect := l.screen.displayRect()
+	// // copy display surface on border surface
+	// l.screen.screen().surface.Blit(nil, l.screen.border().surface, nil)
+	// // flip surface
+	// l.screen.screen().surface.Blit(&sdl.Rect{displayRect.X, displayRect.Y, 0, 0}, display.surface, nil)
+	// l.screen.screen().surface.Flip()
 }
 
 func (l *sdlLoop) calcColor(index, r, g, b byte) {

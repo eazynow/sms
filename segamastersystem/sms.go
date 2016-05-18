@@ -1,8 +1,8 @@
 package sms
 
 import (
+	"github.com/eazynow/z80"
 	"github.com/remogatto/application"
-	"github.com/remogatto/z80"
 )
 
 var hblankcount = 0

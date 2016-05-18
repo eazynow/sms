@@ -186,7 +186,7 @@ func usage() {
 func main() {
 	verbose := flag.Bool("verbose", false, "verbose mode")
 	debug := flag.Bool("debug", false, "debug mode")
-	fullScreen := flag.Bool("fullscreen", false, "go fullscreen")
+	//fullScreen := flag.Bool("fullscreen", false, "go fullscreen")
 	cpuProfile := flag.String("cpuprofile", "", "write cpu profile to file")
 	help := flag.Bool("help", false, "Show usage")
 	flag.Usage = usage
@@ -213,7 +213,8 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	screen := sms.NewSDL2xScreen(*fullScreen)
+	//screen := sms.NewSDL2xScreen(*fullScreen)
+	screen := sms.NewSDLUnscaledScreen()
 	sdlLoop := sms.NewSDLLoop(screen)
 	emulatorLoop := newEmulatorLoop(sdlLoop)
 	if emulatorLoop == nil {

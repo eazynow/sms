@@ -6,7 +6,7 @@ import (
 	sms "github.com/eazynow/sms/segamastersystem"
 	"github.com/eazynow/z80"
 	"github.com/remogatto/application"
-	"github.com/scottferg/Go-SDL/sdl"
+	"github.com/veandco/go-sdl2/sdl"
 	"log"
 	"os"
 	"runtime/pprof"
@@ -209,8 +209,8 @@ func main() {
 	application.Verbose = *verbose
 	application.Debug = *debug
 
-	if sdl.Init(sdl.INIT_EVERYTHING) != 0 {
-		log.Fatal(sdl.GetError())
+	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
+		log.Fatal(err.Error())
 	}
 
 	screen := sms.NewSDL2xScreen(*fullScreen)

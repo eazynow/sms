@@ -3,10 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/scottferg/Go-SDL/sdl"
+	sms "github.com/eazynow/sms/segamastersystem"
+	"github.com/eazynow/z80"
 	"github.com/remogatto/application"
-	sms "github.com/remogatto/sms/segamastersystem"
-	"github.com/remogatto/z80"
+	"github.com/scottferg/Go-SDL/sdl"
 	"log"
 	"os"
 	"runtime/pprof"
@@ -228,9 +228,8 @@ func main() {
 	application.Register("Command loop", commandLoop)
 	application.Register("SDL render loop", sdlLoop)
 	application.Register("SDL input loop", inputLoop)
-
-	exitCh := make(chan bool)
-	application.Run(exitCh)
-	<-exitCh
+	//exitCh := make(chan bool)
+	application.Run()
+	<-application.ExitCh
 	sdl.Quit()
 }

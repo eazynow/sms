@@ -1,4 +1,4 @@
-[![Build Status](https://drone.io/github.com/remogatto/sms/status.png)](https://drone.io/github.com/remogatto/sms/latest)
+[![Build Status](https://drone.io/github.com/eazynow/sms/status.png)](https://drone.io/github.com/eazynow/sms/latest)
 
 # SMS - A concurrent Sega Master System emulator
 
@@ -12,7 +12,7 @@ in this language.
 
 Installing and starting SMS with Go is simple:
 
-    go get -v github.com/remogatto/sms/
+    go get -v github.com/eazynow/sms/
     ./sms roms/blockhead.sms
 
 # Description
@@ -28,7 +28,7 @@ The primary source of inspiration for SMS was
 Javascript SMS emulator.
 
 If you like this project, please star it on
-[GitHub](http://github.com/remogatto/sms)! Bug reports and testing are
+[GitHub](http://github.com/eazynow/sms)! Bug reports and testing are
 also appreciated! And don't forget to fork and send patches, of
 course.
 

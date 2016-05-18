@@ -1,18 +1,18 @@
 package sms
 
 import (
-	"github.com/scottferg/Go-SDL/sdl"
 	"github.com/remogatto/application"
+	"github.com/veandco/go-sdl2/sdl"
 )
 
-var keyMap = map[string]int{
-	"up":    1, // Arrow keys
-	"down":  2,
-	"left":  4,
-	"right": 8,
-	"z":     16, // Z and X for fire
-	"x":     32,
-	"r":     1 << 12, // R for reset button
+var keyMap = map[interface{}]int{
+	sdl.SCANCODE_UP:    1, // Arrow keys
+	sdl.SCANCODE_DOWN:  2,
+	sdl.SCANCODE_LEFT:  4,
+	sdl.SCANCODE_RIGHT: 8,
+	sdl.SCANCODE_Z:     16, // Z and X for fire
+	sdl.SCANCODE_X:     32,
+	sdl.SCANCODE_R:     1 << 12, // R for reset button
 }
 
 type inputLoop struct {
@@ -37,44 +37,31 @@ func (l *inputLoop) Terminate() chan int {
 }
 
 func (l *inputLoop) Run() {
-	for {
-		select {
-		case <-l.pause:
-			l.pause <- 0
+	var event sdl.Event
 
-		case <-l.terminate:
-			l.terminate <- 0
+	running := true
 
-		case _event := <-sdl.Events:
-			switch e := _event.(type) {
-			case sdl.QuitEvent:
-				application.Exit()
-			case sdl.KeyboardEvent:
-				keyName := sdl.GetKeyName(sdl.Key(e.Keysym.Sym))
-				application.Debugf("%d: %s\n", e.Keysym.Sym, keyName)
-				if e.Type == sdl.KEYDOWN {
-					l.sms.Command <- CmdJoypadEvent{keyMap[keyName], JOYPAD_DOWN}
-				} else if e.Type == sdl.KEYUP {
-					l.sms.Command <- CmdJoypadEvent{keyMap[keyName], JOYPAD_UP}
-				}
-				if e.Type == sdl.KEYDOWN && keyName == "p" {
-					paused := make(chan bool)
-					l.sms.Paused = !l.sms.Paused
-					l.sms.Command <- CmdPauseEmulation{paused}
-					<-paused
-				}
-				if e.Type == sdl.KEYDOWN && keyName == "d" {
-					l.sms.Paused = true
-					paused := make(chan bool)
-					l.sms.Command <- CmdPauseEmulation{paused}
-					<-paused
-					l.sms.Command <- CmdShowCurrentInstruction{}
-				}
-				if e.Keysym.Sym == sdl.K_ESCAPE {
-					application.Exit()
-				}
+	for running {
+		for event = sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
+			switch t := event.(type) {
+			case *sdl.QuitEvent:
+				running = false
+			case *sdl.KeyDownEvent:
+				application.Debugf("[%d ms] KeyDown\ttype:%d\tsym:%c\tmodifiers:%d\tstate:%d\trepeat:%d\n",
+					t.Timestamp, t.Type, t.Keysym.Sym, t.Keysym.Mod, t.State, t.Repeat)
 
+				if val, ok := keyMap[t.Keysym.Scancode]; ok {
+					l.sms.Command <- CmdJoypadEvent{keyMap[val], JOYPAD_DOWN}
+				} else if t.Keysym.Scancode == sdl.SCANCODE_ESCAPE {
+					running = false
+				}
+			case *sdl.KeyUpEvent:
+				l.sms.Command <- CmdJoypadEvent{keyMap["up"], JOYPAD_UP}
 			}
 		}
 	}
+
+	sdl.Quit()
+
+	application.Exit()
 }
